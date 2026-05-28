@@ -88,14 +88,25 @@ async def handle_text(client, message: Message):
         except Exception:
             await message.reply("⚠️ Format salah! Gunakan format: Teks, URL")
 
-@app.on_message(filters.photo & filters.private)
-async def handle_photo(client, message: Message):
+# --- Media Handler (Photo + Video) ---
+@app.on_message((filters.photo | filters.video) & filters.private)
+async def handle_media(client, message: Message):
     user_id = message.from_user.id
+
     if user_states.get(user_id) == "wait_photo":
-        user_data[user_id]["photo_file_id"] = message.photo.file_id
+
+        if message.photo:
+            user_data[user_id]["media_type"] = "photo"
+            user_data[user_id]["file_id"] = message.photo.file_id
+
+        elif message.video:
+            user_data[user_id]["media_type"] = "video"
+            user_data[user_id]["file_id"] = message.video.file_id
+
         user_states[user_id] = "wait_caption_after_photo"
+
         await message.reply(
-            "✍️ Kirim caption untuk foto (atau tekan tombol Skip jika tidak ingin pakai caption).",
+            "✍️ Kirim caption (atau tekan Skip jika tidak ingin caption).",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Skip", callback_data="skip_caption")]
             ])
@@ -110,7 +121,7 @@ async def handle_callback(client, callback: CallbackQuery):
 
     if data == "post_type_photo":
         user_states[user_id] = "wait_photo"
-        await callback.message.edit("📸 Kirim fotonya sekarang ya!")
+        await callback.message.edit("📸 Kirim foto atau videonya sekarang ya!")
 
     elif data == "post_type_text":
         user_states[user_id] = "wait_message"
@@ -181,14 +192,24 @@ async def send_final_message(client, user_id, callback):
         return
 
     try:
-        if "photo_file_id" in data:
-            await client.send_photo(
-                chat_id=data["chat_id"],
-                photo=data["photo_file_id"],
-                caption=data.get("message_text", ""),
-                reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
-                parse_mode=ParseMode.HTML
-            )
+        if "file_id" in data:
+        if data.get("media_type") == "photo":
+        await client.send_photo(
+            chat_id=data["chat_id"],
+            photo=data["file_id"],
+            caption=data.get("message_text", ""),
+            reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
+            parse_mode=ParseMode.HTML
+        )
+
+    elif data.get("media_type") == "video":
+        await client.send_video(
+            chat_id=data["chat_id"],
+            video=data["file_id"],
+            caption=data.get("message_text", ""),
+            reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
+            parse_mode=ParseMode.HTML
+        )
         else:
             await client.send_message(
                 chat_id=data["chat_id"],
