@@ -323,7 +323,10 @@ async def handle_callback(
 						
 
                     # Tambah reaction baru user
-                    if new_reaction == emoji:
+                    if (
+						not is_unreact and
+						new_reaction == emoji
+					):
                         count += 1
 
                     if count < 0:
