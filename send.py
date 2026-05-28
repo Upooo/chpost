@@ -4,7 +4,7 @@ from pyrogram.enums import ParseMode
 
 API_ID = 29564102
 API_HASH = '3d4e44824650a1ce0e4ad339f23a4330'
-BOT_TOKEN = '7645991590:AAEOHiFJIP6AM8jQJ7kayxQjgUskWrc-330'
+BOT_TOKEN = '8285614308:AAHjPnJJvGnh4h5hCw3nUsuZw_ogHxzoq7Q'
 
 app = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
