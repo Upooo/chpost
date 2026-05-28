@@ -192,7 +192,7 @@ async def send_final_message(client, user_id, callback):
         return
 
     try:
-        if "file_id" in data:
+        "file_id" in data:
         if data.get("media_type") == "photo":
         await client.send_photo(
             chat_id=data["chat_id"],
