@@ -317,6 +317,8 @@ async def handle_callback(
                     count = int(match.group(1)) if match else 0
 
                     # Kurangi reaction lama user
+					is_unreact = old_reaction == new_reaction
+					
                     if old_reaction == emoji:
                         count -= 1
 
@@ -339,14 +341,28 @@ async def handle_callback(
 
             new_keyboard.append(new_row)
 
-        reactions_db[message_id][user_id_str] = new_reaction
+        
+        if is_unreact:
+            reactions_db[message_id].pop(
+                user_id_str,
+                None
+            )
+        else:
+            reactions_db[message_id][
+                user_id_str
+            ] = new_reaction
         save_reactions(reactions_db)
 
         await callback.message.edit_reply_markup(
             InlineKeyboardMarkup(new_keyboard)
         )
 
-        if old_reaction:
+		if is_unreact:
+			await callback.answer(
+				f"Reaction dihapus."
+			)
+
+        elif old_reaction:
             await callback.answer(
                 f"Reaction diganti ke {new_reaction}"
             )
