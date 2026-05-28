@@ -192,14 +192,14 @@ async def send_final_message(client, user_id, callback):
         return
 
     try:
-        "file_id" in data:
-        if data.get("media_type") == "photo":
-        await client.send_photo(
-            chat_id=data["chat_id"],
-            photo=data["file_id"],
-            caption=data.get("message_text", ""),
-            reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
-            parse_mode=ParseMode.HTML
+        if "file_id" in data:
+            if data.get("media_type") == "photo":
+                await client.send_photo(
+                    chat_id=data["chat_id"],
+                    photo=data["file_id"],
+                    caption=data.get("message_text", ""),
+                    reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
+                    parse_mode=ParseMode.HTML
         )
 
     elif data.get("media_type") == "video":
