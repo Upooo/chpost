@@ -187,12 +187,15 @@ async def ask_more_buttons(msg):
 
 async def send_final_message(client, user_id, callback):
     data = user_data.get(user_id)
+
     if not data:
         await callback.message.edit("⚠️ Data gak lengkap, gagal kirim.")
         return
 
     try:
+        # Kalau ada media (foto/video)
         if "file_id" in data:
+
             if data.get("media_type") == "photo":
                 await client.send_photo(
                     chat_id=data["chat_id"],
@@ -200,16 +203,18 @@ async def send_final_message(client, user_id, callback):
                     caption=data.get("message_text", ""),
                     reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
                     parse_mode=ParseMode.HTML
-        )
+                )
 
-    elif data.get("media_type") == "video":
-        await client.send_video(
-            chat_id=data["chat_id"],
-            video=data["file_id"],
-            caption=data.get("message_text", ""),
-            reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
-            parse_mode=ParseMode.HTML
-        )
+            elif data.get("media_type") == "video":
+                await client.send_video(
+                    chat_id=data["chat_id"],
+                    video=data["file_id"],
+                    caption=data.get("message_text", ""),
+                    reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
+                    parse_mode=ParseMode.HTML
+                )
+
+        # Kalau cuma text
         else:
             await client.send_message(
                 chat_id=data["chat_id"],
@@ -217,7 +222,9 @@ async def send_final_message(client, user_id, callback):
                 reply_markup=InlineKeyboardMarkup(data["buttons"]) if data["buttons"] else None,
                 parse_mode=ParseMode.HTML
             )
+
         await callback.message.edit("✅ Berhasil posting ke channel! Cek ya.")
+
     except Exception as e:
         await callback.message.edit(f"⁉️ Gagal mengirim: {e}")
 
