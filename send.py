@@ -7,6 +7,8 @@ from pyrogram.types import (
 )
 from pyrogram.enums import ParseMode
 import re
+import json
+import os
 
 API_ID = 29564102
 API_HASH = '3d4e44824650a1ce0e4ad339f23a4330'
@@ -22,6 +24,24 @@ app = Client(
 user_states = {}
 user_data = {}
 
+REACTION_FILE = "reactions.json"
+
+
+def load_reactions():
+    if not os.path.exists(REACTION_FILE):
+        with open(REACTION_FILE, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+
+    try:
+        with open(REACTION_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_reactions(data):
+    with open(REACTION_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 # --- Commands ---
 @app.on_message(filters.command("start"))
@@ -111,6 +131,25 @@ async def handle_text(client, message: Message):
         user_data[user_id]["message_text"] = text
         user_states[user_id] = "ask_buttons"
 
+        await ask_add_buttons(message)
+
+    elif state == "wait_reaction_emoji":
+        emojis = text.split()
+
+        if len(emojis) == 0:
+            await message.reply("❗ Minimal 1 emoji.")
+            return
+
+        if len(emojis) > 3:
+            await message.reply("❗ Maksimal 3 emoji.")
+            return
+
+        user_data[user_id]["reactions"] = emojis
+        user_states[user_id] = "ask_buttons"
+
+        await message.reply(
+            f"✅ Reaction disimpan: {' '.join(emojis)}"
+        )
         await ask_add_buttons(message)
 
     elif state == "wait_button_input":
@@ -239,10 +278,87 @@ async def handle_callback(
     user_id = callback.from_user.id
     data = callback.data
     state = user_states.get(user_id)
-
-    # --- Reaction Click ---
+	
+    # --- Reaction System ---
     if data.startswith("react_"):
 
+        reactions_db = load_reactions()
+        message_id = str(callback.message.id)
+        user_id_str = str(callback.from_user.id)
+
+        if message_id not in reactions_db:
+            reactions_db[message_id] = {}
+
+        new_reaction = data.replace("react_", "")
+        old_reaction = reactions_db[message_id].get(user_id_str)
+
+        keyboard = callback.message.reply_markup.inline_keyboard
+        new_keyboard = []
+
+        for row in keyboard:
+            new_row = []
+
+            for button in row:
+
+                if (
+                    button.callback_data and
+                    button.callback_data.startswith("react_")
+                ):
+
+                    emoji = button.callback_data.replace(
+                        "react_", ""
+                    )
+
+                    match = re.search(
+                        r"(\d+)$",
+                        button.text
+                    )
+
+                    count = int(match.group(1)) if match else 0
+
+                    # Kurangi reaction lama user
+                    if old_reaction == emoji:
+                        count -= 1
+
+                    # Tambah reaction baru user
+                    if new_reaction == emoji:
+                        count += 1
+
+                    if count < 0:
+                        count = 0
+
+                    new_row.append(
+                        InlineKeyboardButton(
+                            f"{emoji} {count}",
+                            callback_data=button.callback_data
+                        )
+                    )
+
+                else:
+                    new_row.append(button)
+
+            new_keyboard.append(new_row)
+
+        reactions_db[message_id][user_id_str] = new_reaction
+        save_reactions(reactions_db)
+
+        await callback.message.edit_reply_markup(
+            InlineKeyboardMarkup(new_keyboard)
+        )
+
+        if old_reaction:
+            await callback.answer(
+                f"Reaction diganti ke {new_reaction}"
+            )
+        else:
+            await callback.answer(
+                f"Reaction {new_reaction} ditambahkan"
+            )
+
+        return
+
+	# --- Reaction Click ---
+    if data.startswith("react_"):
         keyboard = (
             callback.message
             .reply_markup
@@ -356,9 +472,7 @@ async def handle_callback(
         )
 
     elif data == "enable_reaction":
-        user_states[user_id] = (
-            "wait_reaction_emoji"
-        )
+        user_states[user_id] = "wait_reaction_emoji"
 
         await callback.message.edit(
             "❤️ Kirim emoji reaction\n"
@@ -446,27 +560,22 @@ async def handle_callback(
 # --- Utility ---
 async def ask_add_buttons(msg):
     await msg.reply(
-        "❓ Mau tambah tombol?",
+        "❓ Mau tambah tombol di postingan?",
         reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton(
                     "✅ Tombol URL",
-                    callback_data=
-                    "add_button_yes"
-                )
-            ],
-            [
+                    callback_data="add_button_yes"
+                ),
                 InlineKeyboardButton(
                     "❤️ Reaction",
-                    callback_data=
-                    "enable_reaction"
+                    callback_data="enable_reaction"
                 )
             ],
             [
                 InlineKeyboardButton(
                     "❌ Selesai",
-                    callback_data=
-                    "add_button_no"
+                    callback_data="add_button_no"
                 )
             ]
         ])
@@ -533,10 +642,25 @@ async def send_final_message(
                 reaction_row
             )
 
+        buttons = data["buttons"][:]
+        reactions = data.get("reactions", [])
+
+        if reactions:
+            reaction_row = []
+
+            for emoji in reactions:
+                reaction_row.append(
+                    InlineKeyboardButton(
+                        f"{emoji} 0",
+                        callback_data=f"react_{emoji}"
+                    )
+                )
+
+            # otomatis horizontal
+            buttons.append(reaction_row)
+
         reply_markup = (
-            InlineKeyboardMarkup(
-                buttons
-            )
+            InlineKeyboardMarkup(buttons)
             if buttons else None
         )
 
