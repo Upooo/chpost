@@ -27,6 +27,9 @@ user_data = {}
 REACTION_FILE = "reactions.json"
 
 
+# ==========================
+# Reaction Database
+# ==========================
 def load_reactions():
     if not os.path.exists(REACTION_FILE):
         with open(REACTION_FILE, "w", encoding="utf-8") as f:
@@ -43,12 +46,15 @@ def save_reactions(data):
     with open(REACTION_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-# --- Commands ---
+
+# ==========================
+# Commands
+# ==========================
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
     await message.reply(
-        "👋 Hai! Aku bot untuk posting pesan ke channel kamu.\n"
-        "Ketik /send untuk mulai mengirim postingan ke channel."
+        "👋 Hai! Bot posting channel.\n"
+        "Ketik /send buat mulai."
     )
 
 
@@ -64,16 +70,18 @@ async def send_command(client, message: Message):
 
     await message.reply(
         "💭 Mau post di channel mana?\n\n"
-        "📝 Contoh: @usernamechannel"
+        "Contoh: @channel"
     )
 
 
 @app.on_message(filters.text & ~filters.private)
-async def ignore_group(client, message: Message):
+async def ignore_group(client, message):
     return
 
 
-# --- Text Handler ---
+# ==========================
+# Text Handler
+# ==========================
 @app.on_message(filters.text & filters.private)
 async def handle_text(client, message: Message):
     user_id = message.from_user.id
@@ -115,7 +123,7 @@ async def handle_text(client, message: Message):
 
         except Exception:
             await message.reply(
-                "❗ Channel gak valid, coba lagi."
+                "❗ Channel gak valid."
             )
 
     elif state == "wait_message":
@@ -150,6 +158,7 @@ async def handle_text(client, message: Message):
         await message.reply(
             f"✅ Reaction disimpan: {' '.join(emojis)}"
         )
+
         await ask_add_buttons(message)
 
     elif state == "wait_button_input":
@@ -159,17 +168,19 @@ async def handle_text(client, message: Message):
                 text.split(",", 1)
             )
 
-            user_data[user_id][
-                "current_button"
-            ] = InlineKeyboardButton(
-                btn_text,
-                url=btn_url
+            user_data[user_id]["current_button"] = (
+                InlineKeyboardButton(
+                    btn_text,
+                    url=btn_url
+                )
             )
 
-            user_states[user_id] = "wait_button_position"
+            user_states[user_id] = (
+                "wait_button_position"
+            )
 
             await message.reply(
-                "❓ Mau posisi tombol gimana?",
+                "❓ Mau posisi tombol?",
                 reply_markup=InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton(
@@ -193,37 +204,13 @@ async def handle_text(client, message: Message):
         except Exception:
             await message.reply(
                 "⚠️ Format salah!\n"
-                "Gunakan:\n"
                 "Teks, URL"
             )
 
-    elif state == "wait_reaction_emoji":
-        emojis = text.split()
 
-        if len(emojis) == 0:
-            await message.reply(
-                "❗ Kirim minimal 1 emoji."
-            )
-            return
-
-        if len(emojis) > 3:
-            await message.reply(
-                "❗ Maksimal 3 emoji reaction."
-            )
-            return
-
-        user_data[user_id]["reactions"] = emojis
-
-        user_states[user_id] = "ask_buttons"
-
-        await message.reply(
-            f"✅ Reaction disimpan: {' '.join(emojis)}"
-        )
-
-        await ask_add_buttons(message)
-
-
-# --- Media Handler ---
+# ==========================
+# Media Handler
+# ==========================
 @app.on_message(
     (filters.photo | filters.video)
     & filters.private
@@ -234,30 +221,23 @@ async def handle_media(client, message: Message):
     if user_states.get(user_id) == "wait_photo":
 
         if message.photo:
-            user_data[user_id][
-                "media_type"
-            ] = "photo"
-
-            user_data[user_id][
-                "file_id"
-            ] = message.photo.file_id
+            user_data[user_id]["media_type"] = "photo"
+            user_data[user_id]["file_id"] = (
+                message.photo.file_id
+            )
 
         elif message.video:
-            user_data[user_id][
-                "media_type"
-            ] = "video"
-
-            user_data[user_id][
-                "file_id"
-            ] = message.video.file_id
+            user_data[user_id]["media_type"] = "video"
+            user_data[user_id]["file_id"] = (
+                message.video.file_id
+            )
 
         user_states[user_id] = (
             "wait_caption_after_photo"
         )
 
         await message.reply(
-            "✍️ Kirim caption\n"
-            "atau tekan Skip",
+            "✍️ Kirim caption atau skip",
             reply_markup=InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton(
@@ -269,7 +249,9 @@ async def handle_media(client, message: Message):
         )
 
 
-# --- Callback Handler ---
+# ==========================
+# Callback Handler
+# ==========================
 @app.on_callback_query()
 async def handle_callback(
     client,
@@ -278,109 +260,36 @@ async def handle_callback(
     user_id = callback.from_user.id
     data = callback.data
     state = user_states.get(user_id)
-	
-    # --- Reaction System ---
+
+    # ======================
+    # Reaction System
+    # ======================
     if data.startswith("react_"):
 
         reactions_db = load_reactions()
+
         message_id = str(callback.message.id)
-        user_id_str = str(callback.from_user.id)
+        user_id_str = str(user_id)
 
         if message_id not in reactions_db:
             reactions_db[message_id] = {}
 
-        new_reaction = data.replace("react_", "")
-        old_reaction = reactions_db[message_id].get(user_id_str)
-		is_unreact = old_reaction == new_reaction
-
-        keyboard = callback.message.reply_markup.inline_keyboard
-        new_keyboard = []
-
-        for row in keyboard:
-            new_row = []
-
-            for button in row:
-
-                if (
-                    button.callback_data and
-                    button.callback_data.startswith("react_")
-                ):
-
-                    emoji = button.callback_data.replace(
-                        "react_", ""
-                    )
-
-                    match = re.search(
-                        r"(\d+)$",
-                        button.text
-                    )
-
-                    count = int(match.group(1)) if match else 0
-
-                    # Kurangi reaction lama user
-                    if old_reaction == emoji:
-                        count -= 1
-						
-
-                    # Tambah reaction baru user
-                    if (
-						not is_unreact and
-						new_reaction == emoji
-					):
-                        count += 1
-
-                    if count < 0:
-                        count = 0
-
-                    new_row.append(
-                        InlineKeyboardButton(
-                            f"{emoji} {count}",
-                            callback_data=button.callback_data
-                        )
-                    )
-
-                else:
-                    new_row.append(button)
-
-            new_keyboard.append(new_row)
-
-        
-        if is_unreact:
-            reactions_db[message_id].pop(
-                user_id_str,
-                None
-            )
-        else:
-            reactions_db[message_id][
-                user_id_str
-            ] = new_reaction
-        save_reactions(reactions_db)
-
-        await callback.message.edit_reply_markup(
-            InlineKeyboardMarkup(new_keyboard)
+        new_reaction = data.replace(
+            "react_",
+            ""
         )
 
-		if is_unreact:
-			await callback.answer(
-				f"Reaction dihapus."
-			)
+        old_reaction = (
+            reactions_db[message_id]
+            .get(user_id_str)
+        )
 
-        elif old_reaction:
-            await callback.answer(
-                f"Reaction diganti ke {new_reaction}"
-            )
-        else:
-            await callback.answer(
-                f"Reaction {new_reaction} ditambahkan"
-            )
+        is_unreact = (
+            old_reaction == new_reaction
+        )
 
-        return
-
-	# --- Reaction Click ---
-    if data.startswith("react_"):
         keyboard = (
-            callback.message
-            .reply_markup
+            callback.message.reply_markup
             .inline_keyboard
         )
 
@@ -397,7 +306,6 @@ async def handle_callback(
                         "react_"
                     )
                 ):
-
                     emoji = (
                         button.callback_data
                         .replace("react_", "")
@@ -413,8 +321,16 @@ async def handle_callback(
                         if match else 0
                     )
 
-                    if data == button.callback_data:
+                    if old_reaction == emoji:
+                        count -= 1
+
+                    if (
+                        not is_unreact
+                        and new_reaction == emoji
+                    ):
                         count += 1
+
+                    count = max(count, 0)
 
                     new_row.append(
                         InlineKeyboardButton(
@@ -423,11 +339,22 @@ async def handle_callback(
                             button.callback_data
                         )
                     )
-
                 else:
                     new_row.append(button)
 
             new_keyboard.append(new_row)
+
+        if is_unreact:
+            reactions_db[message_id].pop(
+                user_id_str,
+                None
+            )
+        else:
+            reactions_db[message_id][
+                user_id_str
+            ] = new_reaction
+
+        save_reactions(reactions_db)
 
         await callback.message.edit_reply_markup(
             InlineKeyboardMarkup(
@@ -435,24 +362,36 @@ async def handle_callback(
             )
         )
 
-        await callback.answer(
-            "Reaction ditambahkan!"
-        )
+        if is_unreact:
+            await callback.answer(
+                "Reaction dihapus."
+            )
+        elif old_reaction:
+            await callback.answer(
+                f"Reaction diganti ke {new_reaction}"
+            )
+        else:
+            await callback.answer(
+                f"Reaction {new_reaction} ditambahkan"
+            )
+
         return
 
-    # --- Post Type ---
+    # ======================
+    # Post Type
+    # ======================
     if data == "post_type_photo":
         user_states[user_id] = "wait_photo"
 
         await callback.message.edit(
-            "📸 Kirim foto / video sekarang ya!"
+            "📸 Kirim foto / video!"
         )
 
     elif data == "post_type_text":
         user_states[user_id] = "wait_message"
 
         await callback.message.edit(
-            "✍️ Kirim teks postingannya!"
+            "✍️ Kirim teks postingan!"
         )
 
     elif data == "post_type_cancel":
@@ -460,7 +399,7 @@ async def handle_callback(
         user_data.pop(user_id, None)
 
         await callback.message.edit(
-            "❌ Proses dibatalkan."
+            "❌ Dibatalkan."
         )
 
     elif (
@@ -480,24 +419,25 @@ async def handle_callback(
             callback.message
         )
 
+    elif data == "enable_reaction":
+        user_states[user_id] = (
+            "wait_reaction_emoji"
+        )
+
+        await callback.message.edit(
+            "❤️ Kirim emoji reaction\n"
+            "Max 3\n\n"
+            "Contoh:\n"
+            "❤️ 🔥 😂"
+        )
+
     elif data == "add_button_yes":
         user_states[user_id] = (
             "wait_button_input"
         )
 
         await callback.message.edit(
-            "❗ Format:\n"
             "Teks, URL"
-        )
-
-    elif data == "enable_reaction":
-        user_states[user_id] = "wait_reaction_emoji"
-
-        await callback.message.edit(
-            "❤️ Kirim emoji reaction\n"
-            "Maksimal 3\n\n"
-            "Contoh:\n"
-            "❤️ 🔥 😂"
         )
 
     elif data == "add_button_no":
@@ -513,22 +453,15 @@ async def handle_callback(
         )
 
         await callback.message.edit(
-            "❗ Format:\n"
             "Teks, URL"
         )
 
     elif data == "pos_vertical":
-        user_data[user_id][
-            "buttons"
-        ].append([
+        user_data[user_id]["buttons"].append([
             user_data[user_id][
                 "current_button"
             ]
         ])
-
-        user_states[user_id] = (
-            "ask_more_buttons"
-        )
 
         await ask_more_buttons(
             callback.message
@@ -539,30 +472,22 @@ async def handle_callback(
         if (
             user_data[user_id]["buttons"]
             and len(
-                user_data[user_id]
-                ["buttons"][-1]
+                user_data[user_id][
+                    "buttons"
+                ][-1]
             ) < 3
         ):
-            user_data[user_id][
-                "buttons"
-            ][-1].append(
+            user_data[user_id]["buttons"][-1].append(
                 user_data[user_id][
                     "current_button"
                 ]
             )
-
         else:
-            user_data[user_id][
-                "buttons"
-            ].append([
+            user_data[user_id]["buttons"].append([
                 user_data[user_id][
                     "current_button"
                 ]
             ])
-
-        user_states[user_id] = (
-            "ask_more_buttons"
-        )
 
         await ask_more_buttons(
             callback.message
@@ -576,10 +501,12 @@ async def handle_callback(
         )
 
 
-# --- Utility ---
+# ==========================
+# Utilities
+# ==========================
 async def ask_add_buttons(msg):
     await msg.reply(
-        "❓ Mau tambah tombol di postingan?",
+        "❓ Mau tambah tombol?",
         reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton(
@@ -603,20 +530,18 @@ async def ask_add_buttons(msg):
 
 async def ask_more_buttons(msg):
     await msg.edit(
-        "❓ Mau tambah tombol lagi?",
+        "Tambah tombol lagi?",
         reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton(
                     "➕ Tambah",
-                    callback_data=
-                    "add_more"
+                    callback_data="add_more"
                 )
             ],
             [
                 InlineKeyboardButton(
                     "✅ Selesai",
-                    callback_data=
-                    "done"
+                    callback_data="done"
                 )
             ]
         ])
@@ -631,13 +556,9 @@ async def send_final_message(
     data = user_data.get(user_id)
 
     if not data:
-        await callback.message.edit(
-            "⚠️ Data gak lengkap."
-        )
         return
 
     try:
-
         buttons = data["buttons"][:]
 
         reactions = data.get(
@@ -657,25 +578,6 @@ async def send_final_message(
                     )
                 )
 
-            buttons.append(
-                reaction_row
-            )
-
-        buttons = data["buttons"][:]
-        reactions = data.get("reactions", [])
-
-        if reactions:
-            reaction_row = []
-
-            for emoji in reactions:
-                reaction_row.append(
-                    InlineKeyboardButton(
-                        f"{emoji} 0",
-                        callback_data=f"react_{emoji}"
-                    )
-                )
-
-            # otomatis horizontal
             buttons.append(reaction_row)
 
         reply_markup = (
@@ -685,54 +587,33 @@ async def send_final_message(
 
         if "file_id" in data:
 
-            if (
-                data.get(
-                    "media_type"
-                ) == "photo"
-            ):
-
+            if data["media_type"] == "photo":
                 await client.send_photo(
-                    chat_id=
-                    data["chat_id"],
-                    photo=
-                    data["file_id"],
-                    caption=
-                    data.get(
+                    chat_id=data["chat_id"],
+                    photo=data["file_id"],
+                    caption=data.get(
                         "message_text",
                         ""
                     ),
                     reply_markup=
-                    reply_markup,
-                    parse_mode=
-                    ParseMode.HTML
+                    reply_markup
                 )
 
-            elif (
-                data.get(
-                    "media_type"
-                ) == "video"
-            ):
-
+            else:
                 await client.send_video(
-                    chat_id=
-                    data["chat_id"],
-                    video=
-                    data["file_id"],
-                    caption=
-                    data.get(
+                    chat_id=data["chat_id"],
+                    video=data["file_id"],
+                    caption=data.get(
                         "message_text",
                         ""
                     ),
                     reply_markup=
-                    reply_markup,
-                    parse_mode=
-                    ParseMode.HTML
+                    reply_markup
                 )
 
         else:
             await client.send_message(
-                chat_id=
-                data["chat_id"],
+                chat_id=data["chat_id"],
                 text=data.get(
                     "message_text",
                     ""
@@ -749,13 +630,14 @@ async def send_final_message(
 
     except Exception as e:
         await callback.message.edit(
-            f"⁉️ Gagal: {e}"
+            f"❌ Error:\n{e}"
         )
 
     user_states.pop(user_id, None)
     user_data.pop(user_id, None)
 
 
-# --- Run ---
+# ==========================
+# Run
+# ==========================
 app.run()
-    
